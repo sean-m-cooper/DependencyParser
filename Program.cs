@@ -1,5 +1,6 @@
-﻿// See https://aka.ms/new-console-template for more information
-
+﻿
+using DependencyParser;
+using DependencyParser.Interfaces;
 using System.Reflection;
 
 static async Task Main(string[] args)
@@ -8,10 +9,12 @@ static async Task Main(string[] args)
     string packageJsonPath = Path.Combine(filePath, "Package_Test.json");
     string testProjectPath = Path.Combine(filePath, "Test_Project.xml");
 
+    NpmDependencyParser npmParser = new NpmDependencyParser();
+    NugetDependencyParser nugetParser = new NugetDependencyParser();
 
+    List<IPackageInfoItem> packages = new List<IPackageInfoItem>();
+    packages.AddRange(await npmParser.GetPackageInfosAsync(packageJsonPath));
+    packages.AddRange(await nugetParser.GetPackageInfosAsync(testProjectPath));
 
-    //Read Instructions.txt
-    //Do Step 1
-    //Do Step 2
-    //Do Step 3
+    await DependencyParserBase.WriteCSVFileAsync("", packages);
 }

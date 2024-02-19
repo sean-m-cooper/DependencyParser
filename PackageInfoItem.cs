@@ -6,7 +6,7 @@ namespace DependencyParser
     /// <summary>
     /// Represents the information about a package dependency
     /// </summary>
-    public partial class PackageInfo : IEquatable<IPackageInfo>, IPackageInfo
+    public partial class PackageInfoItem : IEquatable<IPackageInfoItem>, IPackageInfoItem
     {
         public const string DEFAULT_VERSION_NUMBER = "0.0.0";
 
@@ -15,7 +15,7 @@ namespace DependencyParser
         public PackageSource Source { get; set; }
         public Version MaxVersion { get; set; }
 
-        public PackageInfo(string packageName, string version, PackageSource source)
+        public PackageInfoItem(string packageName, string version, PackageSource source)
         {
             if (string.IsNullOrEmpty(version))
             {
@@ -30,12 +30,12 @@ namespace DependencyParser
             Source = source;
         }
 
-        public bool Equals(IPackageInfo? other)
+        public bool Equals(IPackageInfoItem? other)
         {
             if (other == null) throw new ArgumentException(nameof(other));
             return other.PackageName == this.PackageName;
         }
-        public override bool Equals(object? obj) => Equals(obj as IPackageInfo);
+        public override bool Equals(object? obj) => Equals(obj as IPackageInfoItem);
         public override int GetHashCode() => (PackageName).GetHashCode();
 
     }

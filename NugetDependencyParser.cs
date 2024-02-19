@@ -5,7 +5,7 @@ using System.Xml.Linq;
 
 namespace DependencyParser
 {
-    public class NugetDependencyParser : DependencyParserBase
+    public class NugetDependencyParser : DependencyParserBase, IDependencyParser
     {
         private NugetRepositoryHelper _nugetRepoHelper { get; set; }
 
@@ -15,23 +15,23 @@ namespace DependencyParser
         }
 
         /// <summary>
-        /// Returns a <see cref="List{T}"/> of <see cref="IPackageInfo"/> based on the provided file path
+        /// Returns a <see cref="List{T}"/> of <see cref="IPackageInfoItem"/> based on the provided file path
         /// </summary>
         /// <param name="file"></param>
         /// <returns></returns>
-        public override async Task<List<IPackageInfo>> GetPackageInfosAsync(string filePath)
+        public async Task<List<IPackageInfoItem>> GetPackageInfosAsync(string filePath)
         {
             var fileContents = await EnsureProjectFileAsync(filePath);
 
             var dependencyInfoElements = GetPackageReferenceElements(fileContents);
 
-            List<IPackageInfo> packageInfos = new List<IPackageInfo>();
+            List<IPackageInfoItem> packageInfos = new List<IPackageInfoItem>();
             packageInfos = dependencyInfoElements.Select(p =>
-                new PackageInfo(p.Attribute("Include").Value.ToString(), HygieneVersion(p.Attribute("Version").Value.ToString()), PackageSource.Nuget))
-                .ToList<IPackageInfo>();
+                new PackageInfoItem(p.Attribute("Include").Value.ToString(), HygieneVersion(p.Attribute("Version").Value.ToString()), PackageSource.Nuget))
+                .ToList<IPackageInfoItem>();
 
-            packageInfos.ForEach(async pi => pi.MaxVersion = await GetNugetMaxVersionValueAsync(pi));
-            return packageInfos;
+            packageInfos.ForEach(async pi => pi.MaxVersion = await GetMaxVersionValueAsync(pi));
+            return packageInfos.OrderBy(d => d.PackageName).ToList();
         }
 
         private async Task<string> EnsureProjectFileAsync(string filePath)
@@ -67,19 +67,14 @@ namespace DependencyParser
         }
 
         /// <summary>
-        /// returns a <see cref="PackageInfo"/> with the version set to the latest version available from Nuget
+        /// returns a <see cref="PackageInfoItem"/> with the version set to the latest version available from Nuget
         /// </summary>
         /// <param name="currentPackageInfo"></param>
         /// <returns></returns>
-        private async Task<Version> GetNugetMaxVersionValueAsync(IPackageInfo currentPackageInfo)
+        private async Task<Version> GetMaxVersionValueAsync(IPackageInfoItem currentPackageInfo)
         {
             var packageVersions = await _nugetRepoHelper.GetPackageVersionsAsync(currentPackageInfo.PackageName);
             return packageVersions.OrderByDescending(v => HygieneVersion(v.Version.ToString())).FirstOrDefault().Version;
-        }
-
-        public override Task<Version> GetMaxVersionValueAsync(IPackageInfo currentPackageInfo)
-        {
-            throw new NotImplementedException();
         }
     }
 }

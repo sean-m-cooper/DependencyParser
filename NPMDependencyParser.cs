@@ -5,100 +5,94 @@ using Newtonsoft.Json.Linq;
 
 namespace DependencyParser
 {
-    public class NpmDependencyParser : DependencyParserBase
+    public class NpmDependencyParser : DependencyParserBase, IDependencyParser
     {
-
         /// <summary>
-        /// Returns a <see cref="List{T}"/> of <see cref="PackageInfo"/> based on the provided file path
+        /// Returns a <see cref="List{T}"/> of <see cref="PackageInfoItem"/> based on the provided file path
         /// </summary>
         /// <param name="file"></param>
         /// <returns></returns>
-        public Task<List<IPackageInfo>> GetPackageInfosAsync(string filePath)
+        public async Task<List<IPackageInfoItem>> GetPackageInfosAsync(string filePath)
         {
-            var fileContents = File.ReadAllText(filePath);
-            var packageInfo = JsonConvert.DeserializeObject<JObject>(fileContents);
-            var dependencies = (JObject)packageInfo.SelectToken("dependencies");
-            var packageInfos = dependencies
+            JObject packageInfo = GetPackageInfoFromFile(filePath);
+
+            List<IPackageInfoItem>? packageInfos = CreatePackageInfosFromJson(packageInfo);
+            packageInfos.ForEach(async pi => pi.MaxVersion = await GetMaxVersionValueAsync(pi));
+            return packageInfos.OrderBy(d => d.PackageName).ToList();
+        }
+
+        private List<IPackageInfoItem>? CreatePackageInfosFromJson(JObject packageInfo)
+        {
+            var dependencies = packageInfo.SelectToken("dependencies");
+            var packageInfos = dependencies?
                 .Children<JProperty>()
                 .Select(p => CreateDependencyInfo(p))
                 .ToList();
-            return packageInfos.OrderBy(d => d.PackageName).ToList<IPackageInfo>();
+            return packageInfos;
         }
 
-        /// <summary>
-        /// Writes a csv file to the specified path
-        /// </summary>
-        /// <param name="filePath"></param>
-        /// <exception cref="NotImplementedException"></exception>
-        public override void WriteCSVFile(string filePath)
+        private JObject GetPackageInfoFromFile(string filePath)
         {
-            throw new NotImplementedException();
+            var fileContents = File.ReadAllText(filePath);
+            return JsonConvert.DeserializeObject<JObject>(fileContents);
         }
 
-        private PackageInfo CreateDependencyInfo(JProperty prop)
+        private IPackageInfoItem CreateDependencyInfo(JProperty prop)
         {
             var name = prop.Name.Replace("@", "");
-            var val = prop.Value.ToString().Replace("^", "").Replace("=", "").Replace("~", "").Trim();
-            if (val != null && val.StartsWith("git")) val = "0.0.0";
-            if (val != null && val.Contains('-'))
-            {
-                var index = val.IndexOf("-");
-                val = val[..index];
-            }
-            var packageInfo = new PackageInfo(name, "0.0.0", PackageSource.NPM);
-            packageInfo = new PackageInfo(name, HygieneVersion(val), PackageSource.NPM);
+            string versionValue = ParsePackageVersion(prop);
+
+            var packageInfo = new PackageInfoItem(name, HygieneVersion(versionValue), PackageSource.NPM);
             return packageInfo;
         }
 
+        private string ParsePackageVersion(JProperty prop)
+        {
+            var versionValue = prop.Value.ToString().Replace("^", "").Replace("=", "").Replace("~", "").Trim();
+            if (versionValue != null && versionValue.StartsWith("git")) versionValue = "0.0.0";
+            if (versionValue != null && versionValue.Contains('-'))
+            {
+                var index = versionValue.IndexOf("-");
+                versionValue = versionValue[..index];
+            }
+
+            return !String.IsNullOrEmpty(versionValue) ? versionValue : "";
+        }
+
         /// <summary>
-        /// Returns a <see cref="PackageInfo" /> with the version set to the latest version available from NPM
+        /// Returns a <see cref="PackageInfoItem" /> with the version set to the latest version available from NPM
         /// </summary>
         /// <param name="currentPackageInfo"></param>
         /// <returns></returns>
-        public async Task<Version> GetMaxVersionValueAsync(IPackageInfo currentPackageInfo)
+        public async Task<Version> GetMaxVersionValueAsync(IPackageInfoItem currentPackageInfo)
         {
             using (var client = new HttpClient())
             {
-                var npmPackageInfo = new PackageInfo(currentPackageInfo.PackageName, currentPackageInfo.CurrentVersion.ToString(), currentPackageInfo.Source);
+                //var npmPackageInfo = new PackageInfo(currentPackageInfo.PackageName, currentPackageInfo.CurrentVersion.ToString(), currentPackageInfo.Source);
 
-                string maxVersion = PackageInfo.DEFAULT_VERSION_NUMBER;
+                string maxVersion = PackageInfoItem.DEFAULT_VERSION_NUMBER;
                 var packageName = currentPackageInfo.PackageName;
-                var npmCacheStream = await DownloadFileToStreamAsync($"https://registry.npmjs.org/{packageName}");
-                if (npmCacheStream == null)
-                {
-                    packageName = "@" + packageName;
-                    npmCacheStream = await DownloadFileToStreamAsync($"https://registry.npmjs.org/{packageName}");
-                }
+
+                var npmCacheStream = await TryGetNPMCacheStreamAsync(packageName);
                 if (npmCacheStream != null)
                 {
                     var npmPackageJson = GetJsonFromStream<JObject>(npmCacheStream);
-                    maxVersion = npmPackageJson["dist-tags"]["latest"].Value<string>();
+                    string versionString = npmPackageJson["dist-tags"]["latest"].Value<string>();
+                    maxVersion = HygieneVersion(versionString);
                 }
-               return new Version(HygieneVersion(maxVersion));
+                return new Version(maxVersion);
             }
-
         }
-        private async Task<Stream?> DownloadFileToStreamAsync(string url)
+
+        public async Task<Stream?> TryGetNPMCacheStreamAsync(string packageName)
         {
-            using (HttpClient client = new())
+            var npmCacheStream = await DownloadFileToStreamAsync($"https://registry.npmjs.org/{packageName}");
+            if (npmCacheStream == null)
             {
-                try
-                {
-                    var response = await client.GetAsync(url);
-                    response.EnsureSuccessStatusCode();
-                    var responseBody = await response.Content.ReadAsStreamAsync();
-                    return responseBody;
-                }
-                catch (HttpRequestException httpEx)
-                {
-                    var message = $"HttpError - Url: {url} Message :{httpEx.Message}";
-                }
-                catch (Exception ex)
-                {
-                    var message = $"Error - Url: {url} Message :{ex.Message}";
-                }
+                packageName = "@" + packageName;
+                npmCacheStream = await DownloadFileToStreamAsync($"https://registry.npmjs.org/{packageName}");
             }
-            return null;
+            return npmCacheStream;
         }
 
         private T GetJsonFromStream<T>(Stream stream)

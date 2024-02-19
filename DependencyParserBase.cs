@@ -1,21 +1,20 @@
 ﻿using DependencyParser.Interfaces;
+
 namespace DependencyParser
 {
+
     public abstract class DependencyParserBase
     {
-        public abstract Task<List<IPackageInfo>> GetPackageInfosAsync(string filePath);
-        public abstract Task<Version> GetMaxVersionValueAsync(IPackageInfo currentPackageInfo);
 
         /// <summary>
         /// Writes a csv file to the specified path
         /// </summary>
         /// <param name="filePath"></param>
         /// <exception cref="NotImplementedException"></exception>
-        public Task WriteCSVFileAsync(string filePath)
+        public static Task WriteCSVFileAsync(string filePath, List<IPackageInfoItem> packageInfoItems)
         {
             throw new NotImplementedException();
         }
-
 
         /// <summary>
         /// Replaces extra \ and single " with blanks
@@ -37,7 +36,7 @@ namespace DependencyParser
         {
             if (string.IsNullOrEmpty(version))
             {
-                version = PackageInfo.DEFAULT_VERSION_NUMBER;
+                version = PackageInfoItem.DEFAULT_VERSION_NUMBER;
             }
             version = HygieneString(version);
 
@@ -55,6 +54,29 @@ namespace DependencyParser
             }
             return version;
 
+        }
+
+        protected async Task<Stream?> DownloadFileToStreamAsync(string url)
+        {
+            using (HttpClient client = new())
+            {
+                try
+                {
+                    var response = await client.GetAsync(url);
+                    response.EnsureSuccessStatusCode();
+                    var responseBody = await response.Content.ReadAsStreamAsync();
+                    return responseBody;
+                }
+                catch (HttpRequestException httpEx)
+                {
+                    var message = $"HttpError - Url: {url} Message :{httpEx.Message}";
+                }
+                catch (Exception ex)
+                {
+                    var message = $"Error - Url: {url} Message :{ex.Message}";
+                }
+            }
+            return null;
         }
 
 

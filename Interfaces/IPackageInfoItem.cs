@@ -2,7 +2,7 @@
 
 namespace DependencyParser.Interfaces
 {
-    public interface IPackageInfo
+    public interface IPackageInfoItem
     {
         string PackageName { get; set; }
         PackageSource Source { get; set; }
@@ -10,7 +10,7 @@ namespace DependencyParser.Interfaces
         Version MaxVersion { get; set; }
 
         bool Equals(object? obj);
-        bool Equals(IPackageInfo? other);
+        bool Equals(IPackageInfoItem? other);
         int GetHashCode();
     }
 }
