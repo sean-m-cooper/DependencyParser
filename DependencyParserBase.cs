@@ -5,15 +5,25 @@ namespace DependencyParser
 
     public abstract class DependencyParserBase
     {
-
         /// <summary>
         /// Writes a csv file to the specified path
         /// </summary>
         /// <param name="filePath"></param>
-        /// <exception cref="NotImplementedException"></exception>
-        public static Task WriteCSVFileAsync(string filePath, List<IPackageInfoItem> packageInfoItems)
+        /// <exception cref="ArgumentNullException"></exception>
+        public static async Task WriteCSVFileAsync(string filePath, List<IPackageInfoItem> packageInfoItems)
         {
-            throw new NotImplementedException();
+            if (packageInfoItems is null || !packageInfoItems.Any())
+            {
+                throw new ArgumentNullException("No package info provided", nameof(packageInfoItems));
+            }
+            if (string.IsNullOrEmpty(filePath))
+            {
+                throw new ArgumentNullException(filePath, nameof(filePath));
+            }
+
+            var fileLines = packageInfoItems.Select(p => p.ToString()).ToArray();
+            var writer = new FileWriter(filePath);
+            await writer.WriteFileAsync(fileLines);
         }
 
         /// <summary>
@@ -56,9 +66,9 @@ namespace DependencyParser
 
         }
 
-        protected async Task<Stream?> DownloadFileToStreamAsync(string url)
+        protected async Task<Stream?> DownloadStreamFromUrlAsync(string url, HttpClient client)
         {
-            using (HttpClient client = new())
+            using (client)
             {
                 try
                 {

@@ -1,4 +1,5 @@
 ﻿using DependencyParser.Enums;
+using System.Runtime.CompilerServices;
 
 namespace DependencyParser.Interfaces
 {

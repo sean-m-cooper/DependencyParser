@@ -38,5 +38,9 @@ namespace DependencyParser
         public override bool Equals(object? obj) => Equals(obj as IPackageInfoItem);
         public override int GetHashCode() => (PackageName).GetHashCode();
 
+        public override string ToString()
+        {
+            return $"{PackageName}, {CurrentVersion.ToString()}, {MaxVersion.ToString()}, {Source.ToString()}";
+        }
     }
 }

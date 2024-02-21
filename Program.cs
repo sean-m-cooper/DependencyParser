@@ -1,5 +1,4 @@
-﻿
-using DependencyParser;
+﻿using DependencyParser;
 using DependencyParser.Interfaces;
 using System.Reflection;
 
@@ -9,12 +8,12 @@ static async Task Main(string[] args)
     string packageJsonPath = Path.Combine(filePath, "Package_Test.json");
     string testProjectPath = Path.Combine(filePath, "Test_Project.xml");
 
-    NpmDependencyParser npmParser = new NpmDependencyParser();
-    NugetDependencyParser nugetParser = new NugetDependencyParser();
+    NpmDependencyParser npmParser = new();
+    NugetDependencyParser nugetParser = new();
 
-    List<IPackageInfoItem> packages = new List<IPackageInfoItem>();
-    packages.AddRange(await npmParser.GetPackageInfosAsync(packageJsonPath));
-    packages.AddRange(await nugetParser.GetPackageInfosAsync(testProjectPath));
+    List<IPackageInfoItem> packageInfoItems = new();
+    packageInfoItems.AddRange(await npmParser.GetPackageInfosAsync(packageJsonPath));
+    packageInfoItems.AddRange(await nugetParser.GetPackageInfosAsync(testProjectPath));
 
-    await DependencyParserBase.WriteCSVFileAsync("", packages);
+    await DependencyParserBase.WriteCSVFileAsync(@"c:\test\packages.csv", packageInfoItems);
 }

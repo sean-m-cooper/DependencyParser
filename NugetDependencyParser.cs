@@ -50,7 +50,7 @@ namespace DependencyParser
             List<XElement> dependencyInfoElements = new List<XElement>();
             return projectDoc.Descendants("PackageReference").ToList();
         }
-         
+
         private string HygieneProjectFile(string file)
         {
             string _byteOrderMarkUtf8 = Encoding.UTF8.GetString(Encoding.UTF8.GetPreamble());
@@ -71,7 +71,7 @@ namespace DependencyParser
         /// </summary>
         /// <param name="currentPackageInfo"></param>
         /// <returns></returns>
-        private async Task<Version> GetMaxVersionValueAsync(IPackageInfoItem currentPackageInfo)
+        public async Task<Version> GetMaxVersionValueAsync(IPackageInfoItem currentPackageInfo)
         {
             var packageVersions = await _nugetRepoHelper.GetPackageVersionsAsync(currentPackageInfo.PackageName);
             return packageVersions.OrderByDescending(v => HygieneVersion(v.Version.ToString())).FirstOrDefault().Version;

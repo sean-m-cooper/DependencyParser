@@ -5,8 +5,13 @@ using Newtonsoft.Json.Linq;
 
 namespace DependencyParser
 {
-    public class NpmDependencyParser : DependencyParserBase, IDependencyParser
+    public class NpmDependencyParser : DependencyParserBase, IDependencyParser, IDisposable
     {
+        private HttpClient _httpClient;
+        public NpmDependencyParser()
+        {
+            _httpClient = new HttpClient();
+        }
         /// <summary>
         /// Returns a <see cref="List{T}"/> of <see cref="PackageInfoItem"/> based on the provided file path
         /// </summary>
@@ -14,7 +19,7 @@ namespace DependencyParser
         /// <returns></returns>
         public async Task<List<IPackageInfoItem>> GetPackageInfosAsync(string filePath)
         {
-            JObject packageInfo = GetPackageInfoFromFile(filePath);
+            JObject packageInfo = await GetPackageInfoFromFileAsync(filePath);
 
             List<IPackageInfoItem>? packageInfos = CreatePackageInfosFromJson(packageInfo);
             packageInfos.ForEach(async pi => pi.MaxVersion = await GetMaxVersionValueAsync(pi));
@@ -31,9 +36,9 @@ namespace DependencyParser
             return packageInfos;
         }
 
-        private JObject GetPackageInfoFromFile(string filePath)
+        private async Task<JObject> GetPackageInfoFromFileAsync(string filePath)
         {
-            var fileContents = File.ReadAllText(filePath);
+            var fileContents = await File.ReadAllTextAsync(filePath);
             return JsonConvert.DeserializeObject<JObject>(fileContents);
         }
 
@@ -66,31 +71,26 @@ namespace DependencyParser
         /// <returns></returns>
         public async Task<Version> GetMaxVersionValueAsync(IPackageInfoItem currentPackageInfo)
         {
-            using (var client = new HttpClient())
+            string maxVersion = PackageInfoItem.DEFAULT_VERSION_NUMBER;
+            var packageName = currentPackageInfo.PackageName;
+
+            var npmCacheStream = await TryGetNPMCacheStreamAsync(packageName, _httpClient);
+            if (npmCacheStream != null)
             {
-                //var npmPackageInfo = new PackageInfo(currentPackageInfo.PackageName, currentPackageInfo.CurrentVersion.ToString(), currentPackageInfo.Source);
-
-                string maxVersion = PackageInfoItem.DEFAULT_VERSION_NUMBER;
-                var packageName = currentPackageInfo.PackageName;
-
-                var npmCacheStream = await TryGetNPMCacheStreamAsync(packageName);
-                if (npmCacheStream != null)
-                {
-                    var npmPackageJson = GetJsonFromStream<JObject>(npmCacheStream);
-                    string versionString = npmPackageJson["dist-tags"]["latest"].Value<string>();
-                    maxVersion = HygieneVersion(versionString);
-                }
-                return new Version(maxVersion);
+                var npmPackageJson = GetJsonFromStream<JObject>(npmCacheStream);
+                string versionString = npmPackageJson["dist-tags"]["latest"].Value<string>();
+                maxVersion = HygieneVersion(versionString);
             }
+            return new Version(maxVersion);
         }
 
-        public async Task<Stream?> TryGetNPMCacheStreamAsync(string packageName)
+        public async Task<Stream?> TryGetNPMCacheStreamAsync(string packageName, HttpClient client)
         {
-            var npmCacheStream = await DownloadFileToStreamAsync($"https://registry.npmjs.org/{packageName}");
+            var npmCacheStream = await DownloadStreamFromUrlAsync($"https://registry.npmjs.org/{packageName}", client);
             if (npmCacheStream == null)
             {
                 packageName = "@" + packageName;
-                npmCacheStream = await DownloadFileToStreamAsync($"https://registry.npmjs.org/{packageName}");
+                npmCacheStream = await DownloadStreamFromUrlAsync($"https://registry.npmjs.org/{packageName}", client);
             }
             return npmCacheStream;
         }
@@ -101,6 +101,11 @@ namespace DependencyParser
             using var sr = new StreamReader(stream);
             using var jsonTextReader = new JsonTextReader(sr);
             return serializer.Deserialize<T>(jsonTextReader);
+        }
+
+        public void Dispose()
+        {
+            _httpClient?.Dispose();
         }
     }
 }
